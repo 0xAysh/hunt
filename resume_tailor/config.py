@@ -17,6 +17,10 @@ PROJECT_ROOT = Path(__file__).parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 DATA_DIR = PROJECT_ROOT / "data"
 RUNS_DIR = DATA_DIR / "runs"
+BATCHES_DIR = DATA_DIR / "batches"
+STORY_BANK_PATH = DATA_DIR / "story_bank.json"
+HISTORY_PATH = DATA_DIR / "scan-history.tsv"
+PIPELINE_PATH = DATA_DIR / "pipeline.md"
 
 
 def load_config() -> AppConfig:
@@ -61,3 +65,4 @@ def get_anthropic_api_key() -> str:
 def ensure_dirs() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    BATCHES_DIR.mkdir(parents=True, exist_ok=True)

@@ -10,17 +10,45 @@ import typer
 from anthropic import Anthropic
 from rich.console import Console
 
-from .config import ensure_dirs, get_anthropic_api_key, load_config, save_config
+from .config import DATA_DIR, ensure_dirs, get_anthropic_api_key, load_config, save_config
+from .github_client import fetch_github_profile
+from .linkedin_client import fetch_linkedin_data
 from .models import AppConfig
+from .resume_processor import read_resume
 
 app = typer.Typer(
-    name="resume-tailor",
-    help="AI-powered resume tailoring for job applications.",
+    name="hunt",
+    help="AI-powered job search pipeline.",
     add_completion=False,
 )
 console = Console()
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+
+# Recommendation display helpers
+_REC_COLOR = {"apply": "green", "consider": "yellow", "skip": "red"}
+_REC_EMOJI = {"apply": "✅", "consider": "🟡", "skip": "❌"}
+
+
+def _fetch_profiles(cfg: AppConfig, client: Anthropic):
+    """Fetch GitHub and LinkedIn profiles in parallel."""
+    github_profile = None
+    linkedin_data = None
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        gh_future = (
+            executor.submit(fetch_github_profile, cfg.github_username, cfg.github_token)
+            if cfg.github_username else None
+        )
+        li_future = executor.submit(fetch_linkedin_data, cfg.linkedin_username, client)
+        if gh_future:
+            try:
+                github_profile = gh_future.result()
+            except Exception as e:
+                console.print(f"[yellow]GitHub fetch failed: {e}[/yellow]")
+        try:
+            linkedin_data = li_future.result()
+        except Exception as e:
+            console.print(f"[yellow]LinkedIn fetch failed: {e}[/yellow]")
+    return github_profile, linkedin_data
 
 
 # ── setup ──────────────────────────────────────────────────────────────────────
@@ -105,40 +133,22 @@ def evaluate(
     from .job_analyzer import ingest_job_description
     from .evaluator import evaluate_offer, format_evaluation_report
     from .claude_engine import _build_profile_context
-    from .github_client import fetch_github_profile
-    from .linkedin_client import fetch_linkedin_data
-    from .resume_processor import read_resume
 
     console.print("[blue]Ingesting job description...[/blue]")
     jd_text = ingest_job_description(text=job, url=job_url, file=str(job_file) if job_file else None)
 
     base_resume_path = DATA_DIR / "base_resume.docx"
     if not base_resume_path.exists():
-        console.print("[red]No base resume found. Run `resume-tailor setup --resume <path>` first.[/red]")
+        console.print("[red]No base resume found. Run `hunt setup --resume <path>` first.[/red]")
         raise typer.Exit(1)
 
     resume_doc = read_resume(base_resume_path, client)
-
-    github_profile = None
-    linkedin_data = None
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        gh_future = executor.submit(fetch_github_profile, cfg.github_username, cfg.github_token) if cfg.github_username else None
-        li_future = executor.submit(fetch_linkedin_data, cfg.linkedin_username, client)
-        if gh_future:
-            try:
-                github_profile = gh_future.result()
-            except Exception:
-                pass
-        try:
-            linkedin_data = li_future.result()
-        except Exception:
-            pass
-
+    github_profile, linkedin_data = _fetch_profiles(cfg, client)
     profile_context = _build_profile_context(resume_doc, github_profile, linkedin_data)
     evaluation = evaluate_offer(jd_text, profile_context, client, cfg)
 
     score = evaluation.score
-    rec_color = {"apply": "green", "consider": "yellow", "skip": "red"}.get(score.recommendation, "white")
+    rec_color = _REC_COLOR.get(score.recommendation, "white")
     console.print(f"\n[bold]Score:[/bold] {score.global_score:.1f}/5 — [{rec_color}]{score.recommendation.upper()}[/{rec_color}]")
     console.print(f"[dim]{score.reasoning}[/dim]\n")
 
@@ -182,7 +192,7 @@ def run(
 
     base_resume_path = DATA_DIR / "base_resume.docx"
     if not base_resume_path.exists():
-        console.print("[red]No base resume found. Run `resume-tailor setup --resume <path>` first.[/red]")
+        console.print("[red]No base resume found. Run `hunt setup --resume <path>` first.[/red]")
         raise typer.Exit(1)
 
     api_key = get_anthropic_api_key()
@@ -195,6 +205,10 @@ def run(
         questions += [l.strip() for l in lines if l.strip()]
 
     from .job_analyzer import ingest_job_description, extract_questions
+    from .claude_engine import _build_profile_context, run_pipeline
+    from .evaluator import evaluate_offer, format_evaluation_report
+    from .resume_processor import check_ats_format
+
     console.print("[blue]Ingesting job description...[/blue]")
     jd_text = ingest_job_description(text=job, url=job_url, file=str(job_file) if job_file else None)
     jd_source = job_url or (str(job_file) if job_file else "text input")
@@ -213,30 +227,21 @@ def run(
 
     if scraped_questions:
         console.print(f"[green]Found {len(scraped_questions)} question(s) in job posting.[/green]")
-    all_question_texts = {q.strip() for q in questions}
+    seen_questions = {q.strip() for q in questions}
     for q in scraped_questions:
-        if q.strip() not in all_question_texts:
+        if q.strip() not in seen_questions:
             questions.append(q)
-            all_question_texts.add(q.strip())
+            seen_questions.add(q.strip())
 
-    from .github_client import fetch_github_profile
-    from .linkedin_client import fetch_linkedin_data
-    from .claude_engine import _build_profile_context
+    # Fetch profiles + read resume in parallel with profile fetch
+    github_profile, linkedin_data = _fetch_profiles(cfg, client)
 
-    github_profile = None
-    linkedin_data = None
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        gh_future = executor.submit(fetch_github_profile, cfg.github_username, cfg.github_token) if cfg.github_username else None
-        li_future = executor.submit(fetch_linkedin_data, cfg.linkedin_username, client)
-        if gh_future:
-            try:
-                github_profile = gh_future.result()
-            except Exception as e:
-                console.print(f"[yellow]GitHub fetch failed: {e}[/yellow]")
-        try:
-            linkedin_data = li_future.result()
-        except Exception as e:
-            console.print(f"[yellow]LinkedIn fetch failed: {e}[/yellow]")
+    console.print("[blue]Reading base resume...[/blue]")
+    resume_doc = read_resume(base_resume_path, client)
+
+    ats_warnings = check_ats_format(base_resume_path)
+    for w in ats_warnings:
+        console.print(f"[yellow]ATS Warning: {w}[/yellow]")
 
     # Evaluate offer first (unless skipped)
     evaluation = None
@@ -245,17 +250,13 @@ def run(
     recommendation = None
 
     if not skip_eval:
-        from .evaluator import evaluate_offer, format_evaluation_report
-        profile_context = _build_profile_context(
-            __import__("resume_tailor.resume_processor", fromlist=["read_resume"]).read_resume(base_resume_path, client),
-            github_profile, linkedin_data,
-        )
+        profile_context = _build_profile_context(resume_doc, github_profile, linkedin_data)
         evaluation = evaluate_offer(jd_text, profile_context, client, cfg)
         offer_score = evaluation.score.global_score
         recommendation = evaluation.score.recommendation
         evaluation_report = format_evaluation_report(evaluation, company, role, jd_source)
 
-        rec_color = {"apply": "green", "consider": "yellow", "skip": "red"}.get(recommendation, "white")
+        rec_color = _REC_COLOR.get(recommendation, "white")
         console.print(
             f"\n[bold]Offer score:[/bold] {offer_score:.1f}/5 — [{rec_color}]{recommendation.upper()}[/{rec_color}]"
         )
@@ -267,18 +268,9 @@ def run(
                 default=False,
             )
             if not proceed:
-                console.print("[yellow]Skipping tailoring. Run `resume-tailor evaluate` to see full report.[/yellow]")
+                console.print("[yellow]Skipping tailoring. Run `hunt evaluate` to see the full report.[/yellow]")
                 raise typer.Exit(0)
 
-    from .resume_processor import read_resume, check_ats_format
-    console.print("[blue]Reading base resume...[/blue]")
-    resume_doc = read_resume(base_resume_path, client)
-
-    ats_warnings = check_ats_format(base_resume_path)
-    for w in ats_warnings:
-        console.print(f"[yellow]ATS Warning: {w}[/yellow]")
-
-    from .claude_engine import run_pipeline
     tailored, answers, gap_report = run_pipeline(
         resume=resume_doc,
         jd_text=jd_text,
@@ -288,7 +280,7 @@ def run(
         client=client,
     )
 
-    from .output_manager import save_run, _make_run_id
+    from .output_manager import save_run, _make_run_id  # noqa: PLC0415 — lazy to avoid circular at module level
     run_id = _make_run_id(company, role)
     save_run(
         run_id=run_id,
@@ -310,7 +302,7 @@ def run(
         f"Keyword match: [bold]{tailored.keyword_match_score}/100[/bold]"
         + (f" · Offer score: [bold]{offer_score:.1f}/5[/bold]" if offer_score else "")
     )
-    console.print("Run `resume-tailor review` to approve or reject this tailoring.")
+    console.print("Run `hunt review` to approve or reject this tailoring.")
 
 
 # ── review ─────────────────────────────────────────────────────────────────────

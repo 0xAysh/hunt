@@ -12,13 +12,10 @@ from anthropic import Anthropic
 from rich.console import Console
 from rich.table import Table
 
-from .config import get_anthropic_api_key, load_config
+from .config import get_anthropic_api_key, load_config, DATA_DIR, BATCHES_DIR
 from .models import AppConfig, BatchJob, BatchState
 
 console = Console()
-
-DATA_DIR = Path(__file__).parent.parent / "data"
-BATCHES_DIR = DATA_DIR / "batches"
 
 # Global lock for Playwright-based JD ingestion (not thread-safe)
 _playwright_lock = threading.Lock()
@@ -50,15 +47,21 @@ def _process_single_job(
     cfg: AppConfig,
     state: BatchState,
     state_lock: threading.Lock,
+    profile_context: str,
+    base_resume_path: Path,
+    resume_doc,
+    github_profile,
+    linkedin_data,
 ) -> BatchJob:
-    """Process one job offer end-to-end. Runs in a worker thread."""
+    """Process one job offer end-to-end. Runs in a worker thread.
+
+    Profile context, resume, and API profiles are pre-built once by run_batch()
+    and passed in — avoids redundant work per job.
+    """
     from .job_analyzer import ingest_job_description
     from .evaluator import evaluate_offer
-    from .claude_engine import run_pipeline, _build_profile_context
-    from .github_client import fetch_github_profile
-    from .linkedin_client import fetch_linkedin_data
+    from .claude_engine import run_pipeline
     from .output_manager import save_run, _make_run_id
-    from .resume_processor import read_resume
 
     job.status = "processing"
     job.started_at = datetime.now(timezone.utc)
@@ -67,37 +70,16 @@ def _process_single_job(
         save_state(state)
 
     try:
-        # Phase 1: Ingest JD (Playwright may be needed — use lock)
+        # Phase 1: Ingest JD (Playwright may be needed — serialize with lock)
         with _playwright_lock:
             jd_text = ingest_job_description(url=job.url)
 
-        # Phase 2: Build profile context
-        base_resume_path = DATA_DIR / "base_resume.docx"
-        if not base_resume_path.exists():
-            raise FileNotFoundError("base_resume.docx not found")
-
-        resume_doc = read_resume(base_resume_path, client)
-
-        github_profile = None
-        linkedin_data = None
-        if cfg.github_username:
-            try:
-                github_profile = fetch_github_profile(cfg.github_username, cfg.github_token)
-            except Exception:
-                pass
-        try:
-            linkedin_data = fetch_linkedin_data(cfg.linkedin_username, client)
-        except Exception:
-            pass
-
-        profile_context = _build_profile_context(resume_doc, github_profile, linkedin_data)
-
-        # Phase 3: Evaluate offer
+        # Phase 2: Evaluate offer
         evaluation = evaluate_offer(jd_text, profile_context, client, cfg)
         job.score = evaluation.score.global_score
         job.recommendation = evaluation.score.recommendation
 
-        # Phase 4: If score meets threshold, run full tailoring pipeline
+        # Phase 3: Tailor if score meets threshold
         if not state.min_score_for_tailoring or job.score >= state.min_score_for_tailoring:
             tailored, answers, gap_report = run_pipeline(
                 resume=resume_doc,
@@ -155,8 +137,41 @@ def run_batch(
     Phase 1 (sequential): JD ingestion via Playwright
     Phase 2 (parallel): Evaluation + tailoring (Claude API, no browser)
     """
+    from .claude_engine import _build_profile_context
+    from .github_client import fetch_github_profile
+    from .linkedin_client import fetch_linkedin_data
+    from .resume_processor import read_resume
+
     cfg = load_config()
     client = Anthropic(api_key=get_anthropic_api_key())
+
+    # Build shared context once — not per job
+    base_resume_path = DATA_DIR / "base_resume.docx"
+    if not base_resume_path.exists():
+        raise FileNotFoundError("base_resume.docx not found. Run `hunt setup --resume <path>` first.")
+
+    console.print("[blue]Building profile context (shared across all jobs)...[/blue]")
+    resume_doc = read_resume(base_resume_path, client)
+
+    github_profile = None
+    linkedin_data = None
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        gh_future = (
+            executor.submit(fetch_github_profile, cfg.github_username, cfg.github_token)
+            if cfg.github_username else None
+        )
+        li_future = executor.submit(fetch_linkedin_data, cfg.linkedin_username, client)
+        if gh_future:
+            try:
+                github_profile = gh_future.result()
+            except Exception as e:
+                console.print(f"[yellow]GitHub fetch failed: {e}[/yellow]")
+        try:
+            linkedin_data = li_future.result()
+        except Exception as e:
+            console.print(f"[yellow]LinkedIn fetch failed: {e}[/yellow]")
+
+    profile_context = _build_profile_context(resume_doc, github_profile, linkedin_data)
 
     # Load or create state
     if batch_id:
@@ -197,19 +212,22 @@ def run_batch(
 
     state_lock = threading.Lock()
 
+    _REC_EMOJI = {"apply": "✅", "consider": "🟡", "skip": "❌"}
+
     with ThreadPoolExecutor(max_workers=parallel) as pool:
         futures = {
             pool.submit(
-                _process_single_job, job, client, cfg, state, state_lock
+                _process_single_job,
+                job, client, cfg, state, state_lock,
+                profile_context, base_resume_path, resume_doc,
+                github_profile, linkedin_data,
             ): job
             for job in pending
         }
 
         for future in as_completed(futures):
             job = future.result()
-            rec_icon = {"apply": "✅", "consider": "🟡", "skip": "❌"}.get(
-                job.recommendation or "", "·"
-            )
+            rec_icon = _REC_EMOJI.get(job.recommendation or "", "·")
             if job.status == "completed":
                 score_str = f"{job.score:.1f}/5" if job.score else "—"
                 console.print(

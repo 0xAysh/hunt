@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import html
+import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -14,7 +16,15 @@ console = Console()
 
 TEMPLATE_PATH = Path(__file__).parent.parent / "templates" / "cv-template.html"
 
-# Detect page format from JD text
+# Cache template content at module load — safe since the file doesn't change at runtime
+_TEMPLATE: Optional[str] = None
+
+def _template() -> str:
+    global _TEMPLATE
+    if _TEMPLATE is None:
+        _TEMPLATE = TEMPLATE_PATH.read_text(encoding="utf-8")
+    return _TEMPLATE
+
 _US_SIGNALS = re.compile(
     r"\b(US|USA|United States|New York|San Francisco|Seattle|Austin|Boston|Chicago|Remote — US)\b",
     re.IGNORECASE,
@@ -25,8 +35,7 @@ def _detect_page_format(jd_text: str) -> str:
     return "letter" if _US_SIGNALS.search(jd_text) else "A4"
 
 
-def _h(text: str) -> str:
-    """HTML-escape a string."""
+def _esc(text: str) -> str:
     return html.escape(str(text or ""))
 
 
@@ -37,31 +46,31 @@ def _build_contact_items(contact: Optional[str]) -> str:
     items = []
     for part in parts:
         if re.match(r"https?://", part):
-            items.append(f'<span><a href="{_h(part)}">{_h(part)}</a></span>')
+            items.append(f'<span><a href="{_esc(part)}">{_esc(part)}</a></span>')
         elif "@" in part:
-            items.append(f'<span><a href="mailto:{_h(part)}">{_h(part)}</a></span>')
+            items.append(f'<span><a href="mailto:{_esc(part)}">{_esc(part)}</a></span>')
         else:
-            items.append(f"<span>{_h(part)}</span>")
+            items.append(f"<span>{_esc(part)}</span>")
     return "\n    ".join(items)
 
 
 def _build_competency_tags(keywords: list[str], max_tags: int = 8) -> str:
     tags = keywords[:max_tags]
-    return "".join(f'<span class="competency-tag">{_h(t)}</span>' for t in tags)
+    return "".join(f'<span class="competency-tag">{_esc(t)}</span>' for t in tags)
 
 
 def _build_experience_html(experience: list) -> str:
     blocks = []
     for exp in experience:
         bullets_html = "\n".join(
-            f"<li>{_h(b)}</li>" for b in (exp.bullets or [])
+            f"<li>{_esc(b)}</li>" for b in (exp.bullets or [])
         )
-        company_part = f'<span class="job-company">· {_h(exp.company)}</span>' if exp.company else ""
-        dates_part = f'<span class="job-dates">{_h(exp.dates)}</span>' if exp.dates else ""
+        company_part = f'<span class="job-company">· {_esc(exp.company)}</span>' if exp.company else ""
+        dates_part = f'<span class="job-dates">{_esc(exp.dates)}</span>' if exp.dates else ""
         blocks.append(f"""<div class="job">
   <div class="job-header">
     <div>
-      <span class="job-title">{_h(exp.title)}</span>{company_part}
+      <span class="job-title">{_esc(exp.title)}</span>{company_part}
     </div>
     {dates_part}
   </div>
@@ -76,15 +85,15 @@ def _build_projects_html(projects: list) -> str:
     blocks = []
     for proj in projects:
         stack_str = ", ".join(proj.tech_stack[:5]) if proj.tech_stack else ""
-        stack_part = f'<span class="project-stack">({_h(stack_str)})</span>' if stack_str else ""
-        desc_part = f'<div class="project-desc">{_h(proj.description)}</div>' if proj.description else ""
+        stack_part = f'<span class="project-stack">({_esc(stack_str)})</span>' if stack_str else ""
+        desc_part = f'<div class="project-desc">{_esc(proj.description)}</div>' if proj.description else ""
         bullets_html = "\n".join(
-            f"<li>{_h(b)}</li>" for b in (proj.bullets or [])
+            f"<li>{_esc(b)}</li>" for b in (proj.bullets or [])
         )
         bullets_part = f'<ul class="job-bullets">{bullets_html}</ul>' if proj.bullets else ""
         blocks.append(f"""<div class="project">
   <div class="project-header">
-    <span class="project-name">{_h(proj.name)}</span>{stack_part}
+    <span class="project-name">{_esc(proj.name)}</span>{stack_part}
   </div>
   {desc_part}
   {bullets_part}
@@ -98,10 +107,10 @@ def _build_education_html(education: list) -> str:
         degree_field = " ".join(filter(None, [edu.degree, edu.field]))
         blocks.append(f"""<div class="edu-item">
   <div>
-    <span class="edu-institution">{_h(edu.institution)}</span>
-    {f'<span class="edu-degree"> · {_h(degree_field)}</span>' if degree_field else ""}
+    <span class="edu-institution">{_esc(edu.institution)}</span>
+    {f'<span class="edu-degree"> · {_esc(degree_field)}</span>' if degree_field else ""}
   </div>
-  {f'<span class="edu-year">{_h(edu.year)}</span>' if edu.year else ""}
+  {f'<span class="edu-year">{_esc(edu.year)}</span>' if edu.year else ""}
 </div>""")
     return "\n".join(blocks)
 
@@ -122,8 +131,6 @@ def generate_pdf(
     except ImportError:
         console.print("[yellow]Playwright not installed — skipping HTML PDF generation.[/yellow]")
         return None
-
-    template = TEMPLATE_PATH.read_text(encoding="utf-8")
 
     page_format = _detect_page_format(jd_text)
     lang = "en"
@@ -148,10 +155,10 @@ def generate_pdf(
         "{{LANG}}": lang,
         "{{PAGE_FORMAT}}": page_format,
         "{{ACCENT_COLOR}}": accent_color,
-        "{{NAME}}": _h(tailored.name or ""),
+        "{{NAME}}": _esc(tailored.name or ""),
         "{{CONTACT_ITEMS}}": _build_contact_items(tailored.contact),
         "{{SECTION_SUMMARY}}": "Professional Summary",
-        "{{SUMMARY_TEXT}}": _h(tailored.summary or ""),
+        "{{SUMMARY_TEXT}}": _esc(tailored.summary or ""),
         "{{SECTION_COMPETENCIES}}": "Core Competencies",
         "{{COMPETENCY_TAGS}}": competency_tags,
         "{{SECTION_EXPERIENCE}}": "Work Experience",
@@ -160,15 +167,14 @@ def generate_pdf(
         "{{SECTION_EDUCATION}}": "Education",
         "{{EDUCATION_HTML}}": _build_education_html(tailored.education or []),
         "{{SECTION_SKILLS}}": "Skills",
-        "{{SKILLS_LINE}}": _h(", ".join(tailored.skills or [])),
+        "{{SKILLS_LINE}}": _esc(", ".join(tailored.skills or [])),
     }
 
-    rendered = template
+    rendered = _template()
     for placeholder, value in replacements.items():
         rendered = rendered.replace(placeholder, value)
 
     # Write temp HTML
-    import tempfile, os
     tmp_html = Path(tempfile.gettempdir()) / f"resume_tailor_{os.getpid()}.html"
     tmp_html.write_text(rendered, encoding="utf-8")
 

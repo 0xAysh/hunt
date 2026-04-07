@@ -16,13 +16,11 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
+from .config import DATA_DIR, RUNS_DIR
 from .models import QuestionAnswer, RunMeta, TailoredResume
 from .resume_processor import export_pdf, write_docx
 
 console = Console()
-
-RUNS_DIR = Path(__file__).parent.parent / "data" / "runs"
-DATA_DIR = Path(__file__).parent.parent / "data"
 
 
 def _make_run_id(company: Optional[str], role: Optional[str]) -> str:

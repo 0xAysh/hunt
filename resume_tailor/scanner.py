@@ -13,15 +13,12 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
+from .config import DATA_DIR, HISTORY_PATH, PIPELINE_PATH
 from .models import ScanResult, ScanSummary
 
 console = Console()
 
-# Paths
-DATA_DIR = Path(__file__).parent.parent / "data"
-HISTORY_PATH = DATA_DIR / "scan-history.tsv"
-PIPELINE_PATH = DATA_DIR / "pipeline.md"
-PORTALS_PATH = Path(__file__).parent.parent / "portals.yml"
+PORTALS_PATH = DATA_DIR.parent / "portals.yml"
 
 # Regex to extract title and company from search result strings
 _TITLE_COMPANY_RE = re.compile(

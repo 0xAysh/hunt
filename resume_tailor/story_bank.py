@@ -9,14 +9,13 @@ from typing import Optional, TYPE_CHECKING
 
 from rich.console import Console
 
+from .config import STORY_BANK_PATH
 from .models import InterviewStory, QuestionAnswer
 
 if TYPE_CHECKING:
     from anthropic import Anthropic
 
 console = Console()
-
-STORY_BANK_PATH = Path(__file__).parent.parent / "data" / "story_bank.json"
 
 
 # ── Persistence ───────────────────────────────────────────────────────────────
