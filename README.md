@@ -4,23 +4,6 @@ AI-powered job search pipeline. Evaluates offers, tailors resumes, scans portals
 
 ---
 
-## Features
-
-| Feature | Status |
-|---------|--------|
-| Offer evaluation — A-F scoring across 5 dimensions | ✅ |
-| 7-step resume tailoring (gap analysis → ATS-optimized output) | ✅ |
-| Application question answering (STAR format) | ✅ |
-| PDF generation via HTML template + Playwright | ✅ |
-| GitHub profile enrichment | ✅ |
-| LinkedIn profile scraping (4-strategy fallback) | ✅ |
-| Interview story bank (persistent STAR+R stories) | ✅ |
-| Salary comp research + negotiation scripts | ✅ |
-| Portal scanner (Playwright + API + web search) | ✅ |
-| Batch processing with parallel workers | ✅ |
-| Review / approve workflow | ✅ |
-
----
 
 ## Installation
 
