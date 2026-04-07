@@ -1,0 +1,21 @@
+.env
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.DS_Store
+
+# Personal data — never commit
+config.yaml
+data/base_resume*.docx
+data/linkedin_data.json
+data/github_cache.json
+data/runs/
+data/story_bank.json
+data/scan-history.tsv
+data/pipeline.md
+data/batches/
+portals.yml
