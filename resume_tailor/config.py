@@ -43,6 +43,8 @@ def save_config(cfg: AppConfig) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     # Don't persist secrets to YAML
     data = cfg.model_dump(exclude={"github_token"})
+    # Drop empty lists/Nones to keep config.yaml clean
+    data = {k: v for k, v in data.items() if v not in (None, [], "")}
     with open(CONFIG_PATH, "w") as f:
         yaml.dump(data, f, default_flow_style=False)
 

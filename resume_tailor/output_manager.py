@@ -45,6 +45,10 @@ def save_run(
     company: Optional[str] = None,
     role: Optional[str] = None,
     jd_source: Optional[str] = None,
+    evaluation_report: Optional[str] = None,
+    negotiation_report: Optional[str] = None,
+    offer_score: Optional[float] = None,
+    recommendation: Optional[str] = None,
 ) -> Path:
     """Write all run outputs to data/runs/<run_id>/. Returns run directory."""
     run_dir = RUNS_DIR / run_id
@@ -56,6 +60,14 @@ def save_run(
     # Gap analysis report
     (run_dir / "gap_analysis.md").write_text(gap_report)
 
+    # Offer evaluation report (if present)
+    if evaluation_report:
+        (run_dir / "evaluation.md").write_text(evaluation_report)
+
+    # Negotiation playbook (if present)
+    if negotiation_report:
+        (run_dir / "negotiation.md").write_text(negotiation_report)
+
     # Answers
     if answers:
         answers_md = "# Application Question Answers\n\n"
@@ -63,12 +75,40 @@ def save_run(
             answers_md += f"## {qa.question}\n\n{qa.answer}\n\n---\n\n"
         (run_dir / "answers.md").write_text(answers_md)
 
+        # Persist stories to story bank
+        try:
+            from .story_bank import parse_answers_into_stories, add_stories
+            from .models import JobAnalysis
+            stories = parse_answers_into_stories(answers, company or "unknown", [])
+            if stories:
+                added, updated = add_stories(stories)
+                if added or updated:
+                    console.print(f"[dim]Story bank: +{added} new, {updated} updated[/dim]")
+        except Exception:
+            pass
+
     # Tailored DOCX
     docx_path = run_dir / "tailored_resume.docx"
     write_docx(original_docx, tailored, docx_path)
 
-    # PDF export
-    pdf_path = export_pdf(docx_path, run_dir)
+    # HTML PDF via Playwright (primary) — DOCX-based PDF as fallback
+    pdf_path: Optional[Path] = None
+    try:
+        from .pdf_generator import generate_pdf
+        from .config import load_config
+        cfg = load_config()
+        html_pdf = generate_pdf(
+            tailored=tailored,
+            jd_text=jd_text,
+            output_path=run_dir / "tailored_resume.pdf",
+            accent_color=cfg.pdf_accent_color,
+        )
+        pdf_path = html_pdf
+    except Exception:
+        pass
+
+    if not pdf_path:
+        pdf_path = export_pdf(docx_path, run_dir)
 
     # Run metadata
     meta = RunMeta(
@@ -78,6 +118,8 @@ def save_run(
         created_at=datetime.now(timezone.utc),
         job_description_source=jd_source,
         keyword_match_score=tailored.keyword_match_score,
+        offer_score=offer_score,
+        recommendation=recommendation,
     )
     (run_dir / "run_meta.json").write_text(meta.model_dump_json(indent=2))
 

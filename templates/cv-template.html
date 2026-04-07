@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{NAME}} — Resume</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --accent: {{ACCENT_COLOR}};
+    --text: #1a1a1a;
+    --muted: #555;
+    --light: #888;
+    --border: #e0e0e0;
+    --bg: #ffffff;
+  }
+
+  @page {
+    size: {{PAGE_FORMAT}};
+    margin: 0.5in;
+  }
+
+  body {
+    font-family: 'Source Sans 3', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--bg);
+    max-width: 100%;
+  }
+
+  /* ── Header ── */
+  .header {
+    margin-bottom: 14pt;
+    padding-bottom: 10pt;
+    border-bottom: 2px solid var(--accent);
+  }
+
+  .name {
+    font-family: 'Inter', sans-serif;
+    font-size: 22pt;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    margin-bottom: 4pt;
+  }
+
+  .contact-row {
+    font-size: 9pt;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 12pt;
+  }
+
+  .contact-row a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  .contact-row span::before {
+    content: "·";
+    margin-right: 12pt;
+    color: var(--border);
+  }
+
+  .contact-row span:first-child::before { content: none; }
+
+  /* ── Section headers ── */
+  .section {
+    margin-bottom: 11pt;
+  }
+
+  .section-title {
+    font-family: 'Inter', sans-serif;
+    font-size: 8.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 5pt;
+    padding-bottom: 2pt;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Summary ── */
+  .summary {
+    font-size: 10pt;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── Competencies ── */
+  .competencies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4pt 6pt;
+  }
+
+  .competency-tag {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+    font-size: 8.5pt;
+    font-weight: 500;
+    padding: 2pt 7pt;
+    border-radius: 3pt;
+  }
+
+  /* ── Experience ── */
+  .job {
+    margin-bottom: 9pt;
+  }
+
+  .job-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 2pt;
+  }
+
+  .job-title {
+    font-family: 'Inter', sans-serif;
+    font-size: 10.5pt;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .job-company {
+    font-size: 10pt;
+    font-weight: 500;
+    color: var(--accent);
+    margin-left: 5pt;
+  }
+
+  .job-dates {
+    font-size: 9pt;
+    color: var(--light);
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: 8pt;
+  }
+
+  .job-bullets {
+    padding-left: 12pt;
+    margin-top: 3pt;
+  }
+
+  .job-bullets li {
+    font-size: 10pt;
+    color: var(--text);
+    line-height: 1.5;
+    margin-bottom: 2pt;
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .job-bullets li::before {
+    content: "▸";
+    color: var(--accent);
+    margin-right: 5pt;
+    font-size: 8pt;
+  }
+
+  /* ── Projects ── */
+  .project {
+    margin-bottom: 7pt;
+  }
+
+  .project-header {
+    display: flex;
+    align-items: baseline;
+    gap: 6pt;
+    margin-bottom: 2pt;
+  }
+
+  .project-name {
+    font-family: 'Inter', sans-serif;
+    font-size: 10pt;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .project-stack {
+    font-size: 8.5pt;
+    color: var(--light);
+  }
+
+  .project-desc {
+    font-size: 9.5pt;
+    color: var(--muted);
+    margin-bottom: 2pt;
+  }
+
+  /* ── Education ── */
+  .edu-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10pt;
+    margin-bottom: 3pt;
+  }
+
+  .edu-institution { font-weight: 500; }
+  .edu-degree { color: var(--muted); }
+  .edu-year { color: var(--light); font-size: 9pt; }
+
+  /* ── Skills ── */
+  .skills-line {
+    font-size: 9.5pt;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="name">{{NAME}}</div>
+  <div class="contact-row">{{CONTACT_ITEMS}}</div>
+</div>
+
+<!-- Professional Summary -->
+<div class="section">
+  <div class="section-title">{{SECTION_SUMMARY}}</div>
+  <div class="summary">{{SUMMARY_TEXT}}</div>
+</div>
+
+<!-- Core Competencies -->
+<div class="section">
+  <div class="section-title">{{SECTION_COMPETENCIES}}</div>
+  <div class="competencies">{{COMPETENCY_TAGS}}</div>
+</div>
+
+<!-- Work Experience -->
+<div class="section">
+  <div class="section-title">{{SECTION_EXPERIENCE}}</div>
+  {{EXPERIENCE_HTML}}
+</div>
+
+<!-- Projects -->
+{{PROJECTS_SECTION}}
+
+<!-- Education -->
+<div class="section">
+  <div class="section-title">{{SECTION_EDUCATION}}</div>
+  {{EDUCATION_HTML}}
+</div>
+
+<!-- Skills -->
+<div class="section">
+  <div class="section-title">{{SECTION_SKILLS}}</div>
+  <div class="skills-line">{{SKILLS_LINE}}</div>
+</div>
+
+</body>
+</html>

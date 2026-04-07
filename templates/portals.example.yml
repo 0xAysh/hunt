@@ -1,0 +1,122 @@
+# Portal Scanner Configuration
+# Copy to portals.yml (gitignored) and customize for your job search.
+
+# Title filter — applied to ALL scan results
+title_filter:
+  # At least one positive keyword must appear in the job title
+  positive:
+    - "machine learning"
+    - "ML engineer"
+    - "AI engineer"
+    - "data scientist"
+    - "platform engineer"
+    - "MLOps"
+    - "LLMOps"
+    - "AI platform"
+  # Jobs with ANY negative keyword are automatically skipped
+  negative:
+    - "intern"
+    - "junior"
+    - "student"
+    - "part-time"
+    - "contract"
+    - "staff augmentation"
+  # Seniority boost — not required but bumped in output display
+  seniority_boost:
+    - "senior"
+    - "staff"
+    - "principal"
+    - "lead"
+
+# Companies to track directly (careers page navigation + APIs)
+tracked_companies:
+  - name: Anthropic
+    careers_url: https://jobs.ashbyhq.com/anthropic
+    platform: ashby
+    enabled: true
+
+  - name: OpenAI
+    careers_url: https://jobs.ashbyhq.com/openai
+    platform: ashby
+    enabled: true
+
+  - name: Mistral
+    careers_url: https://jobs.lever.co/mistralai
+    platform: lever
+    enabled: true
+
+  - name: Cohere
+    careers_url: https://jobs.lever.co/cohere
+    platform: lever
+    enabled: true
+
+  - name: ElevenLabs
+    careers_url: https://jobs.ashbyhq.com/elevenlabs
+    platform: ashby
+    enabled: true
+
+  - name: Retool
+    api: https://boards-api.greenhouse.io/v1/boards/retool/jobs
+    platform: greenhouse
+    enabled: true
+
+  - name: Langfuse
+    careers_url: https://jobs.ashbyhq.com/langfuse
+    platform: ashby
+    enabled: true
+
+  - name: Weights & Biases
+    careers_url: https://jobs.lever.co/wandb
+    platform: lever
+    enabled: true
+
+  - name: Hugging Face
+    careers_url: https://apply.workable.com/hugging-face
+    platform: workable
+    enabled: true
+
+  - name: Scale AI
+    careers_url: https://jobs.lever.co/scaleai
+    platform: lever
+    enabled: true
+
+  # Add more companies as needed. Platform options: ashby, greenhouse, lever, workable, custom
+  # - name: YourCompany
+  #   careers_url: https://...
+  #   platform: ashby
+  #   enabled: true
+
+# Broad search queries across job boards (Level 3 — discovers new companies)
+search_queries:
+  - name: "Ashby — ML Engineer"
+    query: 'site:jobs.ashbyhq.com "machine learning engineer" OR "ML engineer"'
+    enabled: true
+
+  - name: "Ashby — AI Platform"
+    query: 'site:jobs.ashbyhq.com "AI platform" OR "LLMOps" OR "MLOps"'
+    enabled: true
+
+  - name: "Greenhouse — ML Engineer"
+    query: 'site:boards.greenhouse.io "machine learning engineer"'
+    enabled: true
+
+  - name: "Greenhouse — AI Platform"
+    query: 'site:boards.greenhouse.io "AI platform engineer" OR "ML platform"'
+    enabled: true
+
+  - name: "Lever — ML"
+    query: 'site:jobs.lever.co "machine learning" OR "ML engineer" senior'
+    enabled: true
+
+  - name: "Wellfound — AI Remote"
+    query: 'site:wellfound.com "AI engineer" OR "ML engineer" remote'
+    enabled: true
+
+  - name: "Workable — ML"
+    query: 'site:apply.workable.com "machine learning engineer"'
+    enabled: false
+
+  # Add your own queries:
+  # - name: "Custom query"
+  #   query: 'site:jobs.ashbyhq.com "your role"'
+  #   enabled: true
