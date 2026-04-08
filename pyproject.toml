@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "resume-tailor"
+name = "hunt"
 version = "0.1.0"
 description = "AI-powered resume tailoring for job applications"
 requires-python = ">=3.11"
@@ -25,8 +25,8 @@ dependencies = [
 ]
 
 [project.scripts]
-resume-tailor = "resume_tailor.cli:main"
+hunt = "hunt.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["resume_tailor*"]
+include = ["hunt*"]

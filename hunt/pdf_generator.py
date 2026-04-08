@@ -175,7 +175,7 @@ def generate_pdf(
         rendered = rendered.replace(placeholder, value)
 
     # Write temp HTML
-    tmp_html = Path(tempfile.gettempdir()) / f"resume_tailor_{os.getpid()}.html"
+    tmp_html = Path(tempfile.gettempdir()) / f"hunt_{os.getpid()}.html"
     tmp_html.write_text(rendered, encoding="utf-8")
 
     if output_path is None:
